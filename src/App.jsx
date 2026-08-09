@@ -251,7 +251,6 @@ export default function App() {
   return (
     <div style={{ minHeight: "100vh", background: "#EEF1EA", fontFamily: "'Noto Sans TC', sans-serif", color: "#2C3A34" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@500;700&display=swap');
         * { box-sizing: border-box; }
         .mono { font-family: 'JetBrains Mono', monospace; }
         button { font-family: inherit; cursor: pointer; }
