@@ -1,8 +1,6 @@
 import { initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
+import { initializeFirestore } from "firebase/firestore";
 
-// 請把下面換成你自己 Firebase 專案的設定值
-// Firebase Console → 齒輪圖示「專案設定」→ 一般 → 往下滑「你的應用程式」→ SDK 設定與設定
 const firebaseConfig = {
   apiKey: "AIzaSyDOlKxiMw0C9ptO4WxTHMQQboshiYgdUBE",
   authDomain: "tenperature-user.firebaseapp.com",
@@ -14,4 +12,7 @@ const firebaseConfig = {
 };
 
 export const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app);
+
+export const db = initializeFirestore(app, {
+  experimentalAutoDetectLongPolling: true,
+});
