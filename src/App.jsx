@@ -13,11 +13,48 @@ import {
   getDocs,
 } from "firebase/firestore";
 
+// 名單：每人可加上 startDate（到職日）/ endDate（結案日），不加代表沒有限制
+// 日期格式一律用 "YYYY-MM-DD"，例如 "2026-08-18"
 const ROSTER = [
-  "力豪", "士弘", "元佑", "尹連", "伃汛", "宏維", "宗甫", "欣儒", "泳呈",
-  "冠銘", "威佑", "彥仁", "思嘉", "施信宏", "哲維", "御民", "逢啓", "喬麒",
-  "喬麟", "惠鈞", "雅美", "瑋淳", "聖偉", "詩婷", "騏彬", "柏賢",
+  { name: "力豪" },
+  { name: "士弘" },
+  { name: "元佑" },
+  { name: "尹連" },
+  { name: "伃汛" },
+  { name: "宏維" },
+  { name: "宗甫" },
+  { name: "欣儒" },
+  { name: "泳呈" },
+  { name: "冠銘" },
+  { name: "威佑" },
+  { name: "彥仁" },
+  { name: "思嘉" },
+  { name: "施信宏" },
+  { name: "哲維" },
+  { name: "御民" },
+  { name: "逢啓" },
+  { name: "喬麒" },
+  { name: "喬麟" },
+  { name: "惠鈞" },
+  { name: "雅美" },
+  { name: "瑋淳" },
+  { name: "聖偉" },
+  { name: "詩婷" },
+  { name: "騏彬" },
+  { name: "柏賢", endDate: "2026-08-09" },
+  { name: "加峻宇", startDate: "2026-08-18" },
 ];
+
+function isActiveOn(person, dateStr) {
+  if (person.startDate && dateStr < person.startDate) return false;
+  if (person.endDate && dateStr > person.endDate) return false;
+  return true;
+}
+
+// 回傳在某一天「應該出現在名單上」的人名陣列
+function activeRosterOn(dateStr) {
+  return ROSTER.filter((p) => isActiveOn(p, dateStr)).map((p) => p.name);
+}
 
 const AVATAR_COLORS = [
   { bg: "#DCE8DF", fg: "#3F6650" },
@@ -182,29 +219,34 @@ export default function App() {
     }
   };
 
+  const todayRoster = useMemo(() => activeRosterOn(dateKey), [dateKey]);
+
   const doneCount = Object.keys(checkins).length;
-  const absentees = useMemo(() => ROSTER.filter((n) => !checkins[n]), [checkins]);
-  const completed = useMemo(() => ROSTER.filter((n) => checkins[n]), [checkins]);
+  const absentees = useMemo(() => todayRoster.filter((n) => !checkins[n]), [checkins, todayRoster]);
+  const completed = useMemo(() => todayRoster.filter((n) => checkins[n]), [checkins, todayRoster]);
   const abnormalCount = useMemo(
-    () => ROSTER.filter((n) => checkins[n]?.status === "異常").length,
-    [checkins]
+    () => todayRoster.filter((n) => checkins[n]?.status === "異常").length,
+    [checkins, todayRoster]
   );
-  const percent = ROSTER.length ? Math.round((doneCount / ROSTER.length) * 100) : 0;
+  const percent = todayRoster.length ? Math.round((doneCount / todayRoster.length) * 100) : 0;
 
   const monthDates = useMemo(() => Object.keys(monthlyRecords).sort(), [monthlyRecords]);
   const totalDays = monthDates.length;
 
+  // 依每一天實際生效的名單來累計「應出席天數」與「實際出席天數」，
+  // 這樣中途到職／結案的人，出席率才會是以他實際在職期間去算，不會被扣分
   const monthlyStats = useMemo(() => {
     const stats = {};
-    ROSTER.forEach((n) => {
-      stats[n] = { present: 0, abnormal: 0 };
-    });
     monthDates.forEach((date) => {
+      const dayRoster = activeRosterOn(date);
       const day = monthlyRecords[date] || {};
-      Object.keys(day).forEach((name) => {
-        if (!stats[name]) stats[name] = { present: 0, abnormal: 0 };
-        stats[name].present += 1;
-        if (day[name].status === "異常") stats[name].abnormal += 1;
+      dayRoster.forEach((name) => {
+        if (!stats[name]) stats[name] = { eligible: 0, present: 0, abnormal: 0 };
+        stats[name].eligible += 1;
+        if (day[name]) {
+          stats[name].present += 1;
+          if (day[name].status === "異常") stats[name].abnormal += 1;
+        }
       });
     });
     return stats;
@@ -220,20 +262,22 @@ export default function App() {
   );
 
   const avgAttendanceRate = useMemo(() => {
-    if (!totalDays || !ROSTER.length) return 0;
-    const presentSum = ROSTER.reduce((sum, n) => sum + (monthlyStats[n]?.present || 0), 0);
-    return Math.round((presentSum / (ROSTER.length * totalDays)) * 100);
-  }, [monthlyStats, totalDays]);
+    const names = Object.keys(monthlyStats);
+    const eligibleSum = names.reduce((sum, n) => sum + monthlyStats[n].eligible, 0);
+    const presentSum = names.reduce((sum, n) => sum + monthlyStats[n].present, 0);
+    return eligibleSum ? Math.round((presentSum / eligibleSum) * 100) : 0;
+  }, [monthlyStats]);
 
   const monthlyRows = useMemo(() => {
-    return ROSTER.map((n) => {
-      const present = monthlyStats[n]?.present || 0;
-      const abnormal = monthlyStats[n]?.abnormal || 0;
-      const absent = totalDays - present;
-      const rate = totalDays ? Math.round((present / totalDays) * 100) : 0;
-      return { name: n, present, absent, abnormal, rate };
-    }).sort((a, b) => a.rate - b.rate);
-  }, [monthlyStats, totalDays]);
+    return Object.keys(monthlyStats)
+      .map((n) => {
+        const { eligible, present, abnormal } = monthlyStats[n];
+        const absent = eligible - present;
+        const rate = eligible ? Math.round((present / eligible) * 100) : 0;
+        return { name: n, present, absent, abnormal, rate, eligible };
+      })
+      .sort((a, b) => a.rate - b.rate);
+  }, [monthlyStats]);
 
   const exportCsv = () => {
     const header = ["姓名", "出席天數", "未出席天數", "異常次數", "出席率"];
@@ -279,7 +323,7 @@ export default function App() {
               <SunArc percent={percent} />
               <div>
                 <div className="mono" style={{ fontSize: 26, fontWeight: 700, lineHeight: 1 }}>
-                  {doneCount}<span style={{ fontSize: 15, color: "#8A9188" }}> / {ROSTER.length}</span>
+                  {doneCount}<span style={{ fontSize: 15, color: "#8A9188" }}> / {todayRoster.length}</span>
                 </div>
                 <div style={{ fontSize: 12, color: "#8A9188", marginTop: 4 }}>已完成報到</div>
               </div>
@@ -325,7 +369,7 @@ export default function App() {
               gap: 14,
             }}
           >
-            {ROSTER.map((name) => {
+            {todayRoster.map((name) => {
               const done = checkins[name];
               const color = hashColor(name);
               return (
@@ -395,7 +439,7 @@ export default function App() {
             {/* Stats */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12, marginBottom: 24 }}>
               {[
-                { label: "總人數", value: ROSTER.length, color: "#2C3A34" },
+                { label: "總人數", value: todayRoster.length, color: "#2C3A34" },
                 { label: "已完成", value: doneCount, color: "#4F7A5B" },
                 { label: "尚未出席", value: absentees.length, color: "#B84C3C" },
                 { label: "異常通報", value: abnormalCount, color: "#B84C3C" },
