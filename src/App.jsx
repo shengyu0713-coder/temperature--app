@@ -42,7 +42,7 @@ const ROSTER = [
   { name: "詩婷" },
   { name: "騏彬" },
   { name: "柏賢", endDate: "2026-08-09" },
-  { name: "加峻宇", startDate: "2026-08-18" },
+  { name: "峻宇", startDate: "2026-08-18" },
 ];
 
 function isActiveOn(person, dateStr) {
