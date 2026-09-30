@@ -43,6 +43,7 @@ const ROSTER = [
   { name: "騏彬" },
   { name: "柏賢", endDate: "2026-08-09" },
   { name: "峻宇", startDate: "2026-08-18" },
+  { name: "健哲", startDate: "2026-09-30" },
 ];
 
 function isActiveOn(person, dateStr) {
